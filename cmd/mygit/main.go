@@ -73,6 +73,21 @@ func main() {
 
 			fmt.Println(blobHash)
 		}
+	case "ls-tree":
+		hash := os.Args[3]
+		directoryName := hash[:2]
+		fileName := hash[2:]
+
+		f, _ := os.Open(filepath.Join(".git", "objects", directoryName, fileName))
+		defer f.Close()
+
+		r, _ := zlib.NewReader(f)
+		store, _ := ioutil.ReadAll(r)
+		l := strings.Split(string(store), "\u0000")
+
+		for i := 1; i < len(l)-1; i++ {
+			fmt.Println(strings.Split(l[i], " ")[1])
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
