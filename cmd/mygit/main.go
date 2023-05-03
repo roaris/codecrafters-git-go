@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"compress/zlib"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
+	"strings"
 
 	// Uncomment this block to pass the first stage!
 	"os"
@@ -41,30 +42,12 @@ func main() {
 			directoryName := hash[:2]
 			fileName := hash[2:]
 
-			f, err := os.Open(fmt.Sprintf(".git/objects/%s/%s", directoryName, fileName))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading file: %s\n", err)
-			}
+			f, _ := os.Open(filepath.Join(".git/objects", directoryName, fileName))
 			defer f.Close()
-			b, err := ioutil.ReadAll(f)
 
-			var buf bytes.Buffer
-			buf.Write(b)
-			r, _ := zlib.NewReader(&buf)
-			b = make([]byte, 1024)
-			r.Read(b)
-
-			for i := 0; i < 1024; i++ {
-				if b[i] == 0 { // ファイルサイズの後のヌルバイト
-					for j := i + 1; j < 1024; j++ {
-						if b[j] == 0 {
-							fmt.Print(string(b[i+1 : j]))
-							break
-						}
-					}
-					break
-				}
-			}
+			r, _ := zlib.NewReader(f)
+			store, _ := ioutil.ReadAll(r)
+			fmt.Print(strings.Split(string(store), "\u0000")[1])
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
