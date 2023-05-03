@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"compress/zlib"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -48,6 +52,26 @@ func main() {
 			r, _ := zlib.NewReader(f)
 			store, _ := ioutil.ReadAll(r)
 			fmt.Print(strings.Split(string(store), "\u0000")[1])
+		}
+	case "hash-object":
+		if len(os.Args) >= 3 && os.Args[2] == "-w" {
+			fileName := os.Args[3]
+			f, _ := os.Open(fileName)
+			b, _ := ioutil.ReadAll(f)
+			s := fmt.Sprintf("blob %d\u0000%s", len(b), string(b))
+
+			sha1 := sha1.New()
+			io.WriteString(sha1, s)
+			blobHash := hex.EncodeToString(sha1.Sum(nil))
+
+			os.Mkdir(fmt.Sprintf(".git/objects/%s", blobHash[:2]), 0755)
+			var compressed bytes.Buffer
+			w := zlib.NewWriter(&compressed)
+			w.Write([]byte(s))
+			w.Close()
+			os.WriteFile(fmt.Sprintf(".git/objects/%s/%s", blobHash[:2], blobHash[2:]), compressed.Bytes(), 0644)
+
+			fmt.Println(blobHash)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
