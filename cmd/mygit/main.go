@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	// Uncomment this block to pass the first stage!
 	"os"
@@ -102,6 +103,34 @@ func main() {
 		os.WriteFile(filepath.Join(".git", "objects", treeHash[:2], treeHash[2:]), compressed.Bytes(), 0644)
 
 		fmt.Println(treeHash)
+	case "commit-tree":
+		treeHash := os.Args[2]
+		parentCommitHash := os.Args[4]
+		message := os.Args[6]
+		authorName := "alice"
+		authorAddress := "alice@example.com"
+		committerName := "bob"
+		committerAddress := "bob@example.com"
+		timestamp := time.Now().Unix()
+		timezone := "+0900"
+		parentsLine := fmt.Sprintf("parent %s", parentCommitHash)
+		authorLine := fmt.Sprintf("author %s <%s> %d %s", authorName, authorAddress, timestamp, timezone)
+		commiterLine := fmt.Sprintf("committer %s <%s> %d %s", committerName, committerAddress, timestamp, timezone)
+		s := fmt.Sprintf("tree %s\n%s\n%s\n%s\n\n%s\n", treeHash, parentsLine, authorLine, commiterLine, message)
+		content := fmt.Sprintf("commit %d\u0000%s", len([]byte(s)), s)
+
+		sha1 := sha1.New()
+		io.WriteString(sha1, content)
+		commitHash := hex.EncodeToString(sha1.Sum(nil))
+
+		os.Mkdir(filepath.Join(".git", "objects", commitHash[:2]), 0755)
+		var compressed bytes.Buffer
+		w := zlib.NewWriter(&compressed)
+		w.Write([]byte(content))
+		w.Close()
+		os.WriteFile(filepath.Join(".git", "objects", commitHash[:2], commitHash[2:]), compressed.Bytes(), 0644)
+
+		fmt.Println(commitHash)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
