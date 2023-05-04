@@ -84,11 +84,28 @@ func main() {
 		defer f.Close()
 
 		r, _ := zlib.NewReader(f)
-		store, _ := ioutil.ReadAll(r)
-		l := strings.Split(string(store), "\u0000")
+		str := make([]byte, 0)
+		foundHeader := false
 
-		for i := 1; i < len(l)-1; i++ {
-			fmt.Println(strings.Split(l[i], " ")[1])
+		for {
+			c := make([]byte, 1)
+			_, err := r.Read(c)
+			if err == io.EOF {
+				break
+			}
+			if c[0] == 0 {
+				if !foundHeader {
+					foundHeader = true
+					str = make([]byte, 0)
+				} else {
+					r.Read(make([]byte, 20))
+					fileName := strings.Split(string(str), " ")[1]
+					fmt.Println(fileName)
+					str = make([]byte, 0)
+				}
+			} else {
+				str = append(str, c[0])
+			}
 		}
 	case "write-tree":
 		currentDir, _ := os.Getwd()
