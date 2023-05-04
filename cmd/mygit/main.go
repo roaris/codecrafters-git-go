@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	// Uncomment this block to pass the first stage!
@@ -88,8 +89,67 @@ func main() {
 		for i := 1; i < len(l)-1; i++ {
 			fmt.Println(strings.Split(l[i], " ")[1])
 		}
+	case "write-tree":
+		currentDir, _ := os.Getwd()
+		h, c := calcTreeHash(currentDir)
+		treeHash := hex.EncodeToString(h)
+
+		os.Mkdir(filepath.Join(".git", "objects", treeHash[:2]), 0755)
+		var compressed bytes.Buffer
+		w := zlib.NewWriter(&compressed)
+		w.Write(c)
+		w.Close()
+		os.WriteFile(filepath.Join(".git", "objects", treeHash[:2], treeHash[2:]), compressed.Bytes(), 0644)
+
+		fmt.Println(treeHash)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
 	}
+}
+
+func calcTreeHash(dir string) ([]byte, []byte) {
+	fileInfos, _ := ioutil.ReadDir(dir)
+	type entry struct {
+		fileName string
+		b        []byte
+	}
+	var entries []entry
+	contentSize := 0
+
+	for _, fileInfo := range fileInfos {
+		if fileInfo.Name() == ".git" {
+			continue
+		}
+		if !fileInfo.IsDir() {
+			f, _ := os.Open(filepath.Join(dir, fileInfo.Name()))
+			b, _ := ioutil.ReadAll(f)
+			s := fmt.Sprintf("blob %d\u0000%s", len(b), string(b))
+
+			sha1 := sha1.New()
+			io.WriteString(sha1, s)
+			s = fmt.Sprintf("100644 %s\u0000", fileInfo.Name())
+			b = append([]byte(s), sha1.Sum(nil)...)
+			entries = append(entries, entry{fileInfo.Name(), b})
+			contentSize += len(b)
+		} else {
+			b, _ := calcTreeHash(filepath.Join(dir, fileInfo.Name()))
+			s := fmt.Sprintf("40000 %s\u0000", fileInfo.Name())
+			b2 := append([]byte(s), b...)
+			entries = append(entries, entry{fileInfo.Name(), b2})
+			contentSize += len(b2)
+		}
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].fileName < entries[j].fileName })
+	s := fmt.Sprintf("tree %d\u0000", contentSize)
+	b := []byte(s)
+
+	for _, entry := range entries {
+		b = append(b, entry.b...)
+	}
+
+	sha1 := sha1.New()
+	io.WriteString(sha1, string(b))
+	return sha1.Sum(nil), b
 }
